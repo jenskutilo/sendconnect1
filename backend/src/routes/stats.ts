@@ -74,27 +74,85 @@ router.get('/dashboard', authenticate, async (req: AuthRequest, res) => {
     // Durchschnittliche Klickrate
     const clickRate = sentLast30Days > 0 ? (clicksLast30Days / sentLast30Days) * 100 : 0;
 
-    // Tagesstatistiken (letzte 30 Tage)
-    const dailyStats = await prisma.$queryRaw<Array<{
-      date: Date;
-      sent: bigint;
-      opens: bigint;
-      clicks: bigint;
-    }>>`
-      SELECT 
-        DATE(sent_at) as date,
-        COUNT(DISTINCT es.id) as sent,
-        COUNT(DISTINCT eo.id) as opens,
-        COUNT(DISTINCT ec.id) as clicks
-      FROM email_sends es
-      LEFT JOIN campaigns c ON es.campaign_id = c.id
-      LEFT JOIN email_opens eo ON eo.campaign_id = es.campaign_id AND DATE(eo.opened_at) = DATE(es.sent_at)
-      LEFT JOIN email_clicks ec ON ec.campaign_id = es.campaign_id AND DATE(ec.clicked_at) = DATE(es.sent_at)
-      WHERE c.user_id = ${userId}
-        AND es.sent_at >= ${thirtyDaysAgo}
-      GROUP BY DATE(es.sent_at)
-      ORDER BY date ASC
-    `;
+    // Tagesstatistiken (letzte 30 Tage) - vereinfacht ohne Raw SQL
+    const allSends = await prisma.emailSend.findMany({
+      where: {
+        campaign: {
+          userId,
+        },
+        sentAt: {
+          gte: thirtyDaysAgo,
+        },
+      },
+      select: {
+        sentAt: true,
+        campaignId: true,
+      },
+    });
+
+    // Gruppiere nach Datum
+    const dailyStatsMap = new Map<string, { sent: number; opens: number; clicks: number }>();
+    
+    for (const send of allSends) {
+      const date = send.sentAt.toISOString().split('T')[0];
+      if (!dailyStatsMap.has(date)) {
+        dailyStatsMap.set(date, { sent: 0, opens: 0, clicks: 0 });
+      }
+      dailyStatsMap.get(date)!.sent++;
+    }
+
+    // Öffnungen hinzufügen
+    const opens = await prisma.emailOpen.findMany({
+      where: {
+        campaign: {
+          userId,
+        },
+        openedAt: {
+          gte: thirtyDaysAgo,
+        },
+      },
+      select: {
+        openedAt: true,
+      },
+    });
+
+    for (const open of opens) {
+      const date = open.openedAt.toISOString().split('T')[0];
+      if (dailyStatsMap.has(date)) {
+        dailyStatsMap.get(date)!.opens++;
+      }
+    }
+
+    // Klicks hinzufügen
+    const clicks = await prisma.emailClick.findMany({
+      where: {
+        campaign: {
+          userId,
+        },
+        clickedAt: {
+          gte: thirtyDaysAgo,
+        },
+      },
+      select: {
+        clickedAt: true,
+      },
+    });
+
+    for (const click of clicks) {
+      const date = click.clickedAt.toISOString().split('T')[0];
+      if (dailyStatsMap.has(date)) {
+        dailyStatsMap.get(date)!.clicks++;
+      }
+    }
+
+    const dailyStats = Array.from(dailyStatsMap.entries())
+      .map(([date, stats]) => ({
+        date: new Date(date),
+        sent: stats.sent,
+        opens: stats.opens,
+        clicks: stats.clicks,
+      }))
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
 
     res.json({
       overview: {

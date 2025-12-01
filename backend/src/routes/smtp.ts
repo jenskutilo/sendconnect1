@@ -21,6 +21,10 @@ const smtpProfileSchema = z.object({
   isDefault: z.boolean().optional(),
 });
 
+const smtpProfileUpdateSchema = smtpProfileSchema.partial().extend({
+  authPass: z.string().min(1).optional(),
+});
+
 // Alle SMTP-Profile
 router.get('/', authenticate, async (req: AuthRequest, res) => {
   try {
@@ -146,7 +150,15 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
 router.put('/:id', authenticate, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    const data = smtpProfileSchema.partial().parse(req.body);
+    const body = req.body;
+    
+    // Passwort nur aktualisieren wenn gesetzt
+    const updateData: any = { ...body };
+    if (!updateData.authPass || updateData.authPass === '') {
+      delete updateData.authPass;
+    }
+    
+    const data = smtpProfileUpdateSchema.parse(updateData);
 
     // Prüfe ob Profil existiert und User gehört
     const existing = await prisma.smtpProfile.findFirst({

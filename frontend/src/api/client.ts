@@ -24,6 +24,11 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config
 
+    // 429 (Rate Limit) Fehler einfach weiterleiten, kein Redirect
+    if (error.response?.status === 429) {
+      return Promise.reject(error)
+    }
+
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true
 
@@ -46,7 +51,10 @@ apiClient.interceptors.response.use(
       } catch (refreshError) {
         localStorage.removeItem('accessToken')
         localStorage.removeItem('refreshToken')
-        window.location.href = '/login'
+        // Nur zu Login umleiten wenn nicht bereits auf Login-Seite
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login'
+        }
         return Promise.reject(refreshError)
       }
     }
