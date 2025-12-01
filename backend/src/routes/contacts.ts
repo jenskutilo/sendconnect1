@@ -120,7 +120,7 @@ router.post('/list/:listId', authenticate, async (req: AuthRequest, res) => {
         ...data,
         listId,
         status: data.status || ContactStatus.SUBSCRIBED,
-      },
+      } as any,
     });
 
     res.status(201).json(contact);
@@ -282,8 +282,8 @@ router.post('/list/:listId/import', authenticate, upload.single('file'), async (
               data: {
                 firstName: mappingObj.firstName ? row[mappingObj.firstName] : existing.firstName,
                 lastName: mappingObj.lastName ? row[mappingObj.lastName] : existing.lastName,
-                customFields: mappingObj.customFields
-                  ? { ...existing.customFields, ...row[mappingObj.customFields] }
+                customFields: mappingObj.customFields && existing.customFields
+                  ? { ...(existing.customFields as object), ...(row[mappingObj.customFields] as object) }
                   : existing.customFields,
               },
             });

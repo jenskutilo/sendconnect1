@@ -7,6 +7,10 @@ const prisma = new PrismaClient();
 export interface AuthRequest extends Request {
   userId?: string;
   userRole?: string;
+  params: any;
+  body: any;
+  query: any;
+  file?: any;
 }
 
 export const authenticate = async (

@@ -173,10 +173,10 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
         smtpProfileId: data.smtpProfileId || null,
         status: scheduledAt ? CampaignStatus.SCHEDULED : CampaignStatus.DRAFT,
         subject: data.subject,
-        subjectRotation: data.subjectRotation || null,
+        subjectRotation: data.subjectRotation ? data.subjectRotation : undefined,
         fromName: data.fromName,
         fromEmail: data.fromEmail,
-        fromRotation: data.fromRotation || null,
+        fromRotation: data.fromRotation ? data.fromRotation : undefined,
         htmlContent: data.htmlContent,
         textContent: data.textContent || null,
         preheader: data.preheader || null,
@@ -212,7 +212,7 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
     }
 
     // Nur DRAFT oder SCHEDULED können bearbeitet werden
-    if (![CampaignStatus.DRAFT, CampaignStatus.SCHEDULED].includes(campaign.status)) {
+    if (campaign.status !== CampaignStatus.DRAFT && campaign.status !== CampaignStatus.SCHEDULED) {
       return res.status(400).json({ error: 'Kampagne kann nicht mehr bearbeitet werden' });
     }
 
@@ -254,7 +254,7 @@ router.delete('/:id', authenticate, async (req: AuthRequest, res) => {
     }
 
     // Nur DRAFT, SCHEDULED oder CANCELLED können gelöscht werden
-    if ([CampaignStatus.SENDING, CampaignStatus.FINISHED].includes(campaign.status)) {
+    if (campaign.status === CampaignStatus.SENDING || campaign.status === CampaignStatus.FINISHED) {
       return res.status(400).json({ error: 'Kampagne kann nicht gelöscht werden' });
     }
 

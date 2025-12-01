@@ -76,7 +76,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       data: {
         ...data,
         userId: req.userId!,
-      },
+      } as any,
     });
 
     res.status(201).json(list);

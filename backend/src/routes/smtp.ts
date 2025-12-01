@@ -115,7 +115,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
         ...data,
         userId: req.userId!,
         rateLimit: data.rateLimit || 100,
-      },
+      } as any,
       select: {
         id: true,
         name: true,
