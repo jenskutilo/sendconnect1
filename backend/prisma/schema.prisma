@@ -1,0 +1,254 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+enum ContactStatus {
+  SUBSCRIBED
+  UNSUBSCRIBED
+  PENDING
+  BOUNCED
+  COMPLAINT
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  PAUSED
+  FINISHED
+  CANCELLED
+}
+
+enum BounceType {
+  HARD
+  SOFT
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  firstName String?  @map("first_name")
+  lastName  String?  @map("last_name")
+  role      UserRole @default(USER)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  campaigns Campaign[]
+  lists     List[]
+  templates Template[]
+  smtpProfiles SmtpProfile[]
+
+  @@map("users")
+}
+
+model SmtpProfile {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  name        String
+  host        String
+  port        Int
+  secure      Boolean  @default(false) // true = SSL, false = TLS/None
+  authUser    String   @map("auth_user")
+  authPass    String   @map("auth_pass")
+  fromName    String   @default("") @map("from_name")
+  fromEmail   String   @map("from_email")
+  replyTo     String?  @map("reply_to")
+  rateLimit   Int      @default(100) @map("rate_limit") // Mails pro Stunde
+  isDefault   Boolean  @default(false) @map("is_default")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaigns Campaign[]
+
+  @@map("smtp_profiles")
+}
+
+model List {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  name        String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contacts Contact[]
+  campaigns Campaign[]
+
+  @@map("lists")
+}
+
+model Contact {
+  id          String        @id @default(uuid())
+  listId      String        @map("list_id")
+  email       String
+  firstName   String?       @map("first_name")
+  lastName    String?       @map("last_name")
+  status      ContactStatus @default(SUBSCRIBED)
+  customFields Json?        @map("custom_fields") // Key-Value Store
+  unsubscribeToken String   @unique @default(uuid()) @map("unsubscribe_token")
+  optInToken  String?       @unique @map("opt_in_token")
+  lastOpen    DateTime?     @map("last_open")
+  lastClick   DateTime?     @map("last_click")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  list       List           @relation(fields: [listId], references: [id], onDelete: Cascade)
+  opens      EmailOpen[]
+  clicks     EmailClick[]
+  sends      EmailSend[]
+  bounces    Bounce[]
+
+  @@unique([listId, email])
+  @@map("contacts")
+}
+
+model Template {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  name        String
+  subject     String?
+  htmlContent String  @map("html_content")
+  textContent String? @map("text_content")
+  preheader   String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaigns Campaign[]
+
+  @@map("templates")
+}
+
+model Campaign {
+  id              String         @id @default(uuid())
+  userId          String         @map("user_id")
+  name            String
+  listId          String?        @map("list_id")
+  segmentId       String?        @map("segment_id")
+  templateId      String?        @map("template_id")
+  smtpProfileId   String?        @map("smtp_profile_id")
+  status          CampaignStatus @default(DRAFT)
+  subject         String
+  subjectRotation Json?          @map("subject_rotation") // Array von Strings
+  fromName        String         @map("from_name")
+  fromEmail       String         @map("from_email")
+  fromRotation    Json?          @map("from_rotation") // Array von {name, email}
+  htmlContent     String         @map("html_content")
+  textContent     String?
+  preheader       String?
+  scheduledAt     DateTime?      @map("scheduled_at")
+  sentAt          DateTime?      @map("sent_at")
+  finishedAt      DateTime?      @map("finished_at")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  list        List?      @relation(fields: [listId], references: [id], onDelete: SetNull)
+  template    Template?   @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  smtpProfile SmtpProfile? @relation(fields: [smtpProfileId], references: [id], onDelete: SetNull)
+  sends       EmailSend[]
+  opens       EmailOpen[]
+  clicks      EmailClick[]
+  bounces     Bounce[]
+
+  @@map("campaigns")
+}
+
+model EmailSend {
+  id          String   @id @default(uuid())
+  campaignId  String   @map("campaign_id")
+  contactId   String   @map("contact_id")
+  subject     String
+  fromName    String   @map("from_name")
+  fromEmail   String   @map("from_email")
+  sentAt      DateTime @default(now()) @map("sent_at")
+  status      String   @default("sent") // sent, failed, pending
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contact  Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@map("email_sends")
+}
+
+model EmailOpen {
+  id          String   @id @default(uuid())
+  campaignId  String   @map("campaign_id")
+  contactId   String   @map("contact_id")
+  openedAt    DateTime @default(now()) @map("opened_at")
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contact  Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, contactId, openedAt])
+  @@map("email_opens")
+}
+
+model EmailClick {
+  id          String   @id @default(uuid())
+  campaignId  String   @map("campaign_id")
+  contactId   String   @map("contact_id")
+  originalUrl String   @map("original_url")
+  clickedAt   DateTime @default(now()) @map("clicked_at")
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contact  Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@map("email_clicks")
+}
+
+model Bounce {
+  id          String     @id @default(uuid())
+  campaignId  String     @map("campaign_id")
+  contactId   String     @map("contact_id")
+  type        BounceType
+  reason      String?
+  bouncedAt   DateTime   @default(now()) @map("bounced_at")
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contact  Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@map("bounces")
+}
+
+model Segment {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  name        String
+  description String?
+  filters     Json     // Filter-Kriterien als JSON
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("segments")
+}
+
+model Setting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     Json
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
+
