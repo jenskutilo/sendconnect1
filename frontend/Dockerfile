@@ -2,26 +2,13 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Installiere Dependencies
 COPY package*.json ./
 RUN npm ci
 
-# Kopiere Source
 COPY . .
-
-# Baue Frontend
 RUN npm run build
 
-# Production Image
 FROM nginx:alpine
-
-# Kopiere gebaute Dateien
 COPY --from=builder /app/dist /usr/share/nginx/html
-
-# Kopiere Nginx Config (falls vorhanden)
-COPY nginx.conf /etc/nginx/conf.d/default.conf 2>/dev/null || true
-
 EXPOSE 80
-
 CMD ["nginx", "-g", "daemon off;"]
-
