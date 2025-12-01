@@ -4,13 +4,16 @@ WORKDIR /app
 
 # Installiere Dependencies
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm ci
 
-# Kopiere Source
-COPY . .
+# Kopiere Prisma Schema
+COPY prisma ./prisma
 
 # Generiere Prisma Client
 RUN npx prisma generate
+
+# Kopiere Source
+COPY . .
 
 # Baue TypeScript
 RUN npm run build

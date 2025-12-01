@@ -74,85 +74,92 @@ router.get('/dashboard', authenticate, async (req: AuthRequest, res) => {
     // Durchschnittliche Klickrate
     const clickRate = sentLast30Days > 0 ? (clicksLast30Days / sentLast30Days) * 100 : 0;
 
-    // Tagesstatistiken (letzte 30 Tage) - vereinfacht ohne Raw SQL
-    const allSends = await prisma.emailSend.findMany({
-      where: {
-        campaign: {
-          userId,
-        },
-        sentAt: {
-          gte: thirtyDaysAgo,
-        },
-      },
-      select: {
-        sentAt: true,
-        campaignId: true,
-      },
+    // Tagesstatistiken (letzte 30 Tage) - vereinfacht
+    // Zuerst alle Campaign-IDs des Users holen
+    const userCampaigns = await prisma.campaign.findMany({
+      where: { userId },
+      select: { id: true },
     });
+    const campaignIds = userCampaigns.map(c => c.id);
 
-    // Gruppiere nach Datum
-    const dailyStatsMap = new Map<string, { sent: number; opens: number; clicks: number }>();
+    // Wenn keine Kampagnen, leere Stats zurückgeben
+    let dailyStats: Array<{ date: Date; sent: number; opens: number; clicks: number }> = [];
     
-    for (const send of allSends) {
-      const date = send.sentAt.toISOString().split('T')[0];
-      if (!dailyStatsMap.has(date)) {
-        dailyStatsMap.set(date, { sent: 0, opens: 0, clicks: 0 });
+    if (campaignIds.length > 0) {
+      const dailyStatsMap = new Map<string, { sent: number; opens: number; clicks: number }>();
+
+      // Versendete Mails
+      const allSends = await prisma.emailSend.findMany({
+        where: {
+          campaignId: { in: campaignIds },
+          sentAt: { gte: thirtyDaysAgo },
+        },
+        select: {
+          sentAt: true,
+        },
+      });
+
+      for (const send of allSends) {
+        if (send.sentAt) {
+          const date = send.sentAt.toISOString().split('T')[0];
+          if (!dailyStatsMap.has(date)) {
+            dailyStatsMap.set(date, { sent: 0, opens: 0, clicks: 0 });
+          }
+          dailyStatsMap.get(date)!.sent++;
+        }
       }
-      dailyStatsMap.get(date)!.sent++;
-    }
 
-    // Öffnungen hinzufügen
-    const opens = await prisma.emailOpen.findMany({
-      where: {
-        campaign: {
-          userId,
+      // Öffnungen
+      const opens = await prisma.emailOpen.findMany({
+        where: {
+          campaignId: { in: campaignIds },
+          openedAt: { gte: thirtyDaysAgo },
         },
-        openedAt: {
-          gte: thirtyDaysAgo,
+        select: {
+          openedAt: true,
         },
-      },
-      select: {
-        openedAt: true,
-      },
-    });
+      });
 
-    for (const open of opens) {
-      const date = open.openedAt.toISOString().split('T')[0];
-      if (dailyStatsMap.has(date)) {
-        dailyStatsMap.get(date)!.opens++;
+      for (const open of opens) {
+        if (open.openedAt) {
+          const date = open.openedAt.toISOString().split('T')[0];
+          if (!dailyStatsMap.has(date)) {
+            dailyStatsMap.set(date, { sent: 0, opens: 0, clicks: 0 });
+          }
+          dailyStatsMap.get(date)!.opens++;
+        }
       }
-    }
 
-    // Klicks hinzufügen
-    const clicks = await prisma.emailClick.findMany({
-      where: {
-        campaign: {
-          userId,
+      // Klicks
+      const clicks = await prisma.emailClick.findMany({
+        where: {
+          campaignId: { in: campaignIds },
+          clickedAt: { gte: thirtyDaysAgo },
         },
-        clickedAt: {
-          gte: thirtyDaysAgo,
+        select: {
+          clickedAt: true,
         },
-      },
-      select: {
-        clickedAt: true,
-      },
-    });
+      });
 
-    for (const click of clicks) {
-      const date = click.clickedAt.toISOString().split('T')[0];
-      if (dailyStatsMap.has(date)) {
-        dailyStatsMap.get(date)!.clicks++;
+      for (const click of clicks) {
+        if (click.clickedAt) {
+          const date = click.clickedAt.toISOString().split('T')[0];
+          if (!dailyStatsMap.has(date)) {
+            dailyStatsMap.set(date, { sent: 0, opens: 0, clicks: 0 });
+          }
+          dailyStatsMap.get(date)!.clicks++;
+        }
       }
-    }
 
-    const dailyStats = Array.from(dailyStatsMap.entries())
-      .map(([date, stats]) => ({
-        date: new Date(date),
-        sent: stats.sent,
-        opens: stats.opens,
-        clicks: stats.clicks,
-      }))
-      .sort((a, b) => a.date.getTime() - b.date.getTime());
+      dailyStats = Array.from(dailyStatsMap.entries())
+        .map(([date, stats]) => ({
+          date: new Date(date),
+          sent: stats.sent,
+          opens: stats.opens,
+          clicks: stats.clicks,
+        }))
+        .sort((a, b) => a.date.getTime() - b.date.getTime());
+    }
 
     res.json({
       overview: {
