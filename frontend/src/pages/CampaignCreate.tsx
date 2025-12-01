@@ -26,10 +26,11 @@ export default function CampaignCreate() {
     return response.data
   })
 
-  const { data: templates } = useQuery('templates', async () => {
-    const response = await apiClient.get('/templates')
-    return response.data
-  })
+  // Templates werden später verwendet
+  // const { data: templates } = useQuery('templates', async () => {
+  //   const response = await apiClient.get('/templates')
+  //   return response.data
+  // })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

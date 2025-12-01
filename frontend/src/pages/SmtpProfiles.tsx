@@ -6,8 +6,8 @@ import { Plus, Server, Trash2, Mail } from 'lucide-react'
 
 export default function SmtpProfiles() {
   const queryClient = useQueryClient()
-  const [showForm, setShowForm] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
+  // const [showForm, setShowForm] = useState(false)
+  // const [editingId, setEditingId] = useState<string | null>(null)
   const [testEmail, setTestEmail] = useState('')
 
   const { data, isLoading } = useQuery('smtp-profiles', async () => {
@@ -49,7 +49,7 @@ export default function SmtpProfiles() {
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold text-gray-900">SMTP-Profile</h1>
         <button
-          onClick={() => setShowForm(true)}
+          onClick={() => {/* TODO: Formular öffnen */}}
           className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
         >
           <Plus className="w-5 h-5 mr-2" />

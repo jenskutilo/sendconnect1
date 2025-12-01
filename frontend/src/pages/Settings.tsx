@@ -2,7 +2,7 @@ import { useQuery } from 'react-query'
 import { apiClient } from '../api/client'
 
 export default function Settings() {
-  const { data, isLoading } = useQuery('settings', async () => {
+  const { isLoading } = useQuery('settings', async () => {
     const response = await apiClient.get('/settings')
     return response.data
   })
